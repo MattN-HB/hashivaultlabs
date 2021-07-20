@@ -1,0 +1,104 @@
+#challenge 1 lab2
+consul members
+
+#verify leader
+consul operator raft list-peers
+#get license
+consul license get
+
+#step create acls for vault
+#consul1
+consul acl policy create \
+ -name vault \
+ -rules @/root/config-files/vault/vault-policy.hcl
+
+#craete token
+consul acl token create \
+ -description "vault token" \
+ -policy-name vault
+
+#challenge2
+#find acl token
+consul acl token list | grep -B 2 "vault token" | sed -n 1p | \
+cut -d' ' -f8
+
+consul acl token read -id=b2d47c33-020c-de74-d0e3-7642a78349ba
+
+#secretid = conslt vault token in each tab
+sed -i "s/CONSUL_VAULT_TOKEN/7e7210e1-feda-27b9-a12e-85fb9e4697a1/g" /etc/vault.d/vault.hcl
+
+#step2 start each vault
+systemctl start vault
+
+#verify
+ps -ef | grep vault
+
+#vault environment variable in each vault
+export VAULT_ADDR=https://127.0.0.1:443
+echo "export VAULT_ADDR=https://127.0.0.1:443" >> /root/.bash_profile
+
+#set tls in each
+#vault 1
+export VAULT_CACERT=/etc/consul.d/tls/consul-agent-ca.pem
+export VAULT_CLIENT_CERT=/etc/consul.d/tls/dc1-client-vault-1.pem
+export VAULT_CLIENT_KEY=/etc/consul.d/tls/dc1-client-vault-1-key.pem
+echo "export VAULT_CACERT=/etc/consul.d/tls/consul-agent-ca.pem" >> /root/.bash_profile
+echo "export VAULT_CLIENT_CERT=/etc/consul.d/tls/dc1-client-vault-1.pem" >> /root/.bash_profile
+echo "export VAULT_CLIENT_KEY=/etc/consul.d/tls/dc1-client-vault-1-key.pem" >> /root/.bash_profile
+
+#vault2
+export VAULT_CACERT=/etc/consul.d/tls/consul-agent-ca.pem
+export VAULT_CLIENT_CERT=/etc/consul.d/tls/dc1-client-vault-2.pem
+export VAULT_CLIENT_KEY=/etc/consul.d/tls/dc1-client-vault-2-key.pem
+echo "export VAULT_CACERT=/etc/consul.d/tls/consul-agent-ca.pem" >> /root/.bash_profile
+echo "export VAULT_CLIENT_CERT=/etc/consul.d/tls/dc1-client-vault-2.pem" >> /root/.bash_profile
+echo "export VAULT_CLIENT_KEY=/etc/consul.d/tls/dc1-client-vault-2-key.pem" >> /root/.bash_profile
+
+#vault3
+export VAULT_CACERT=/etc/consul.d/tls/consul-agent-ca.pem
+export VAULT_CLIENT_CERT=/etc/consul.d/tls/dc1-client-vault-3.pem
+export VAULT_CLIENT_KEY=/etc/consul.d/tls/dc1-client-vault-3-key.pem
+echo "export VAULT_CACERT=/etc/consul.d/tls/consul-agent-ca.pem" >> /root/.bash_profile
+echo "export VAULT_CLIENT_CERT=/etc/consul.d/tls/dc1-client-vault-3.pem" >> /root/.bash_profile
+echo "export VAULT_CLIENT_KEY=/etc/consul.d/tls/dc1-client-vault-3-key.pem" >> /root/.bash_profile
+
+#verify 
+vault status
+
+#challenge3
+#intialize cluster vault 1
+vault operator init -key-shares=3 -key-threshold=2 | tee /root/config-files/vault/initialization.txt
+
+Unseal Key 1: xwWNAWvf8YwcTizPHN3MawD99bCH9m7IjWb73Sj052FB
+Unseal Key 2: NOCe5fXcdgTFvK8pvpOtWD2ioSoQOZpStvpJRtPpTKXQ
+Unseal Key 3: ekVf7GIzdHiDXitjyvnlxXJKsTs8lL1DPC4T+4r6g/A5
+
+Initial Root Token: s.6EmiH63hr0jVS9r7dy6kt5RY
+
+#unseal each twic using 2 different keys on each vault
+vault operator unseal
+
+#check status noting unsealed on second one
+vault status
+
+#challenge4 apply eval and verify cluster health
+#apply and wait 30-60s
+vault write sys/license text=@/root/config-files/vault/vault.hclic
+
+#verify
+vault read sys/license
+
+#step2 verify helath
+nslookup vault.service.consul
+
+#see standby servers
+nslookup performance-standby.vault.service.consul
+
+consul members
+
+#Run systemctl stop vault on the tab corresponding to the active Vault server.
+
+systemctl stop vault
+
+#wait 10
+nslookup active.vault.service.consul

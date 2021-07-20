@@ -1,0 +1,224 @@
+#lab1challenge1
+#step 1 create encryption key
+consul keygen
+
+t/M2OZDMDXp9aZnSFyPN9b/ufbMNqQAA+35iElTEDnU=
+
+#encrypt key on each consul
+echo 'encrypt = "t/M2OZDMDXp9aZnSFyPN9b/ufbMNqQAA+35iElTEDnU="' >> /etc/consul.d/consul.hcl
+
+#start server on each consul
+systemctl start consul
+
+#verify
+consul members
+
+#find leader
+consul operator raft list-peers
+
+# apply license in consul tab 1 only needs be done here so replicates
+consul license put @/root/config-files/consul.hclic
+
+#challenge 2
+#add encryption key
+echo 'encrypt = "t/M2OZDMDXp9aZnSFyPN9b/ufbMNqQAA+35iElTEDnU="' >> /etc/consul.d/consul.hcl
+
+#start client
+systemctl start consul
+#vlidate up
+consul members
+
+#challenge3
+#consul1tab create ca cert
+cd config-files
+consul tls ca create
+
+#add ca.pem
+cp consul-agent-ca.pem /etc/consul.d/tls/.
+
+cp consul-agent-ca-key.pem /etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no consul-agent-ca.pem consul-server-2:/etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no consul-agent-ca-key.pem consul-server-2:/etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no consul-agent-ca.pem consul-server-3:/etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no consul-agent-ca-key.pem consul-server-3:/etc/consul.d/tls/.
+
+#copy key to client
+scp -o StrictHostKeyChecking=no consul-agent-ca.pem consul-client-1:/etc/consul.d/tls/.
+
+#step2 challenge3
+#create distinct certs RUN THIS 4 times
+consul tls cert create -server
+
+#copy certs 
+cp dc1-server-consul-1.pem /etc/consul.d/tls/.
+
+cp dc1-server-consul-1-key.pem /etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no dc1-server-consul-2.pem consul-server-2:/etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no dc1-server-consul-2-key.pem consul-server-2:/etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no dc1-server-consul-3.pem consul-server-3:/etc/consul.d/tls/.
+
+scp -o StrictHostKeyChecking=no dc1-server-consul-3-key.pem consul-server-3:/etc/consul.d/tls/.
+
+#step3 restart servers on each tab
+systemctl restart consul
+
+#verify each server up
+ps -ef | grep consul
+
+#step4
+#client restart
+systemctl restart consul
+
+#verify
+ps -ef | grep consul
+
+#step5 trust cli ca
+export CONSUL_CACERT=/etc/consul.d/tls/consul-agent-ca.pem
+
+#step6 enable encryption tab 1
+sed -i "s/verify_incoming = false/verify_incoming = true/g" /etc/consul.d/tls-server.hcl
+sed -i "s/verify_outgoing = false/verify_outgoing = true/g" /etc/consul.d/tls-server.hcl
+sed -i "s/verify_server_hostname = false/verify_server_hostname = true/g" /etc/consul.d/tls-server.hcl
+
+#on tab 2
+sed -i "s/verify_incoming = false/verify_incoming = true/g" /etc/consul.d/tls-server.hcl
+sed -i "s/verify_outgoing = false/verify_outgoing = true/g" /etc/consul.d/tls-server.hcl
+sed -i "s/verify_server_hostname = false/verify_server_hostname = true/g" /etc/consul.d/tls-server.hcl
+#on tab3
+sed -i "s/verify_incoming = false/verify_incoming = true/g" /etc/consul.d/tls-server.hcl
+sed -i "s/verify_outgoing = false/verify_outgoing = true/g" /etc/consul.d/tls-server.hcl
+sed -i "s/verify_server_hostname = false/verify_server_hostname = true/g" /etc/consul.d/tls-server.hcl
+
+#restart each server with one sec in between
+systemctl restart consul
+
+#step 7 Configure the Consul CLI on the Servers set client cert and client key
+echo "export CONSUL_HTTP_ADDR=https://localhost:8501" >> /root/.bash_profile
+echo "export CONSUL_CACERT=/etc/consul.d/tls/consul-agent-ca.pem" >> /root/.bash_profile
+echo "export CONSUL_CLIENT_CERT=/etc/consul.d/tls/dc1-server-consul-1.pem" >> /root/.bash_profile
+echo "export CONSUL_CLIENT_KEY=/etc/consul.d/tls/dc1-server-consul-1-key.pem" >> /root/.bash_profile
+
+#refresh white cirlcle and then
+consul members
+#consul 2 tab
+echo "export CONSUL_HTTP_ADDR=https://localhost:8501" >> /root/.bash_profile
+echo "export CONSUL_CACERT=/etc/consul.d/tls/consul-agent-ca.pem" >> /root/.bash_profile
+echo "export CONSUL_CLIENT_CERT=/etc/consul.d/tls/dc1-server-consul-2.pem" >> /root/.bash_profile
+echo "export CONSUL_CLIENT_KEY=/etc/consul.d/tls/dc1-server-consul-2-key.pem" >> /root/.bash_profile
+
+#challenge 4 enable consul acls
+#restart 10 sec apart
+systemctl restart consul
+
+#step2 boostrap acl system first tab
+consul acl bootstrap >> /root/config-files/bootstrap.txt
+
+#step 3 export consul_http_token 
+#go to config bootsrap.txt and grab the secret id which is bootstraptoken
+#consul tab 1,2,3 and client
+export CONSUL_HTTP_TOKEN=527342c0-22e8-908e-ccc5-9f320bb68534
+
+#consul tab 1,2,3 and client
+echo "export CONSUL_HTTP_TOKEN=$CONSUL_HTTP_TOKEN" >> /root/.bash_profile
+
+#step 4 add acl policies
+#consul 1
+consul acl policy create \
+ -name consul-server-1 \
+ -rules @/root/config-files/agent-policy.hcl
+
+#consul2
+consul acl policy create \
+ -name consul-server-2 \
+ -rules @/root/config-files/agent-policy.hcl
+
+#consul3
+consul acl policy create \
+ -name consul-server-3 \
+ -rules @/root/config-files/agent-policy.hcl
+
+#step5 add acl tokens
+#consul1
+consul acl token create \
+ -description "consul server 1 agent token" \
+ -policy-name consul-server-1
+
+#consul1 add the token
+consul acl set-agent-token agent 42440890-bf4f-b7b1-88ec-1ec40c88ad99
+
+#consul2 create
+consul acl token create \
+ -description "consul server 2 agent token" \
+ -policy-name consul-server-2
+#add
+consul acl set-agent-token agent 1f9ba4c8-b323-9e45-14d1-7708e605c4d9
+
+#consul3 create token
+consul acl token create \
+ -description "consul server 3 agent token" \
+ -policy-name consul-server-3
+
+#add
+consul acl set-agent-token agent a12ca0b3-1d2a-5ba6-c551-e280d822569c
+
+#step 6 add acls to client
+#consul 1 load policy
+consul acl policy create \
+ -name consul-client-1 \
+ -rules @/root/config-files/agent-policy-client.hcl
+
+#create token consul 1
+consul acl token create \
+ -description "consul client 1 agent token" \
+ -policy-name consul-client-1
+
+#update acl IN CLIENT
+sed -i "s/CLIENT_TOKEN/5fe8fc4e-68c1-e36a-d441-86aefdfee348/g" /etc/consul.d/acl.hcl
+#restart in client
+systemctl restart consul
+consul members
+
+#step8 anonymous dns
+#consul1
+consul acl policy create -name anonymous -rules @/root/config-files/anonymous-policy.hcl
+consul acl token update -id anonymous -policy-name anonymous
+
+#test
+dig @127.0.0.1 -p 8600 consul.service.consul
+
+#challenge5 run consul snapshot agent
+#consul 1 create acl policy snapshotagent
+consul acl policy create \
+ -name snapshot-agent \
+ -rules @/root/config-files/snapshot-agent-policy.hcl
+
+#token consul1
+consul acl token create \
+ -description "consul snapshot agent" \
+ -policy-name snapshot-agent
+
+#c0a0c0d0-5114-f546-8ac4-f404ccdc324c
+
+#step 2 snapshot token in all consul tabs
+sed -i "s/TOKEN/c0a0c0d0-5114-f546-8ac4-f404ccdc324c/g" /etc/consul.d/snapshot.json
+
+#step3 run in each consul tab 1
+systemctl daemon-reload
+systemctl start consul-snapshot
+
+
+
+
+
+
+
+
+
+
