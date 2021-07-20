@@ -1,0 +1,46 @@
+#verifycluster in each
+vault status
+
+#verify ips
+nslookup active.vault.service.consul
+
+#get license
+consul license get
+vault read sys/license
+
+#create kv secrets engine or can use the UI
+vault secrets enable -version=2 kv
+
+#challenge2
+#vault1 enable audit file log
+vault audit enable file file_path=/var/log/vault/audit.log
+
+#verify
+vault audit list
+
+#examine log entries
+vault kv put kv/password vault_wizard=matt pwd=P@ssword!
+
+#extract log
+grep wizard /var/log/vault/audit.log | jq
+
+#find and get secret
+vault kv get kv/password
+
+#compute hash of the password
+vault write sys/audit-hash/file input="P@ssword!"
+
+#search for that hash 
+grep 5343fc54da208aab5527a8562e40e4f74994e02a9b916799163b7f0969be341c /var/log/vault/audit.log | tail -1 | jq
+
+#step4 create second unhashed audit device YOU DO NOT WANT DO THIS IN PROD BUT #MAY IN DEV to understand your structure
+vault audit enable -path=unhashed-file file log_raw=true file_path=/var/log/vault/unhashed_audit.log
+
+#list
+vault audit list
+
+#read secret again
+vault kv get kv/password
+
+#inspect unhash log
+grep wizard /var/log/vault/unhashed_audit.log | jq
