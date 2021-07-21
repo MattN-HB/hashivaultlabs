@@ -1,0 +1,200 @@
+#challenge1
+#step1
+#verify cluster health in eu-1 tab
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#na-1 tab
+consul members
+vault status
+consul license get
+vault read sys/license
+
+ #to log into ui this is to grab the root token
+cat /root/config-files/vault/initialization.txt | grep Root
+
+#step 2 enable gdpr engine
+vault secrets enable -path=GDPR_Data kv-v2
+
+#enable non gdpr
+vault secrets enable -path=Non_GDPR_Data kv-v2
+
+#write both secrets
+vault kv put Non_GDPR_Data/capitals Germany=Berlin France=Paris England=London
+vault kv put GDPR_Data/credit_scores Heike=78 Pierre=90 John=87
+
+#challenge 2
+#enable performance replication
+vault write -f sys/replication/performance/primary/enable
+
+#generate secondary token
+vault write sys/replication/performance/primary/secondary-token id=NA-1
+
+#wrap token into na-1 tab
+vault write sys/replication/performance/secondary/enable ca_file=/etc/consul.d/tls/consul-agent-ca.pem token=eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3NvciI6IiIsImFkZHIiOiJodHRwczovLzEwLjEzMi4xLjIyMDo0NDMiLCJleHAiOjE2MjY4ODEzODMsImlhdCI6MTYyNjg3OTU4MywianRpIjoicy5FWGFacUFBdm5wTVBteExkanI1dk04S3kiLCJuYmYiOjE2MjY4Nzk1NzksInR5cGUiOiJ3cmFwcGluZyJ9.Ac8xppNlmbMdewzHNmlvbSLOd7peWWQhIpaXeaWkxIJnc86GPQfOv_NrhiniEI2TEzaoDpsAYQU0WR_-7FdkTc17AOZK1tFyqV9KCdrUw3tnFKQp5GedQe-45ThBL94PGvwa_25J_3gvjHoZS_uKt8DWY4LhskD50rfh1IJZXFyLjm7z
+
+#wait 20 30 sec and check in each staus performance replication
+vault read sys/replication/performance/status
+
+#step 2 test performance replication in na-1 tab this will fail need password
+vault kv get GDPR_Data/credit_scores
+
+#generate otp use for root token
+vault operator generate-root -generate-otp
+
+#run with password
+vault operator generate-root -init -otp=Rc0GMmtCpeL7pqojlQB7CSrZns
+
+#authenticate make sure used recovery keys from EU-1 not NA_1
+vault operator generate-root
+
+#Next, run the following command twice, using two of the recovery keys in the initialization.txt file under /root/config-files/vault on the EU-1 tab.
+#decode
+vault operator generate-root -decode=<token> -otp=<otp>
+vault operator generate-root -decode=IU1iDhsfGzIxKDkHBDcLPR5hcUULJUcpHCc -otp=Rc0GMmtCpeL7pqojlQB7CSrZns
+
+#new root token for na-1 
+#export
+export VAULT_TOKEN=s.RIVroqAMu0tFdWr03rHv5srT
+
+#update bash
+sed -i '$d' /root/.bash_profile
+echo "export VAULT_TOKEN=$VAULT_TOKEN" >> /root/.bash_profile
+
+#verify can raed the gdpr credit score secret
+vault kv get GDPR_Data/credit_scores
+
+#apply the performance replication on secondary eval license greater than 30 minute
+vault write sys/license text=@/root/config-files/vault/vault.hclic
+
+#challenge3
+#step1 filter eu-1 secrets replicated to na-1
+vault write sys/replication/performance/primary/paths-filter/NA-1 mode=deny paths=GDPR_Data/
+
+#verify written to na-1 this will not work due to policy filter we just made
+vault kv get GDPR_Data/credit_scores
+
+#try here
+vault kv get Non_GDPR_Data/capitals
+
+#step2 filter na-1data to eu-1
+vault secrets enable -path=Replicated_Data kv-v2
+
+#enalbe local_data
+vault secrets enable -path=Local_Data -local=true kv-v2
+
+#write some secrets in na-1
+vault kv put Replicated_Data/capitals US=Washington Mexico="Mexico City" Canada=Ottawa
+vault kv put Local_Data/credit_scores Tim=90 Susan=80 Linda=85
+
+#now try read in eu-1
+vault kv get Replicated_Data/capitals
+
+#verify you can't read gdpr data 
+vault kv get Local_Data/credit_scores
+
+#challenge4	
+#verify health in eu2 and na2
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#log in using below creds to ui
+cat /root/config-files/vault/initialization.txt | grep Root
+ e
+#challenge5 enable dr replication with wrapping token
+#eu-1
+vault write -f sys/replication/dr/primary/enable
+#generate secondary wrap token
+vault write sys/replication/dr/primary/secondary-token id=EU-2 | tee /root/config-files/vault/wrapping_token.txt
+
+#copy token from eu-1 to eu2. IN EU-2
+scp -o StrictHostKeyChecking=no vault-eu-1:/root/config-files/vault/wrapping_token.txt /root/config-files/vault/wrapping_token.txt
+wrapping_token=$(cat /root/config-files/vault/wrapping_token.txt | grep wrapping_token: | cut -d' ' -f19)
+
+#enable dr replication on eu2
+vault write sys/replication/dr/secondary/enable ca_file=/etc/consul.d/tls/consul-agent-ca.pem token=$wrapping_token
+
+#verify status of each
+vault read sys/replication/dr/status
+
+#verify ip match
+ifconfig
+
+#step2 dr replication public key
+#enable on na-1
+vault write -f sys/replication/dr/primary/enable
+
+#generate on na-2 public key
+vault write -f sys/replication/dr/secondary/generate-public-key
+
+#on na-1 sec public key received 
+vault write sys/replication/dr/primary/secondary-token id=NA-2 secondary_public_key=4zihQKnBDTV9PystVZ8L1JfUJtMYs8P5HW3J1rnDrCw | tee /root/config-files/vault/sec_token.txt
+
+#verify status
+vault read sys/replication/dr/status
+
+#in na2 copy it over
+scp -o StrictHostKeyChecking=no vault-na-1:/root/config-files/vault/sec_token.txt /root/config-files/vault/sec_token.txt
+sec_token=$(cat /root/config-files/vault/sec_token.txt | grep token | cut -d' ' -f5)
+
+#wait 60 sec and enable dr replication
+
+vault write sys/replication/dr/secondary/enable ca_file=/etc/consul.d/tls/consul-agent-ca.pem token=$sec_token
+
+
+#verify in each na1 and 2 status
+vault read sys/replication/dr/status
+
+#challenge 6 promote dr sec cluster to prm
+#step1 stop the primary on na1
+systemctl stop vault
+
+#na2 promote
+vault operator generate-root -dr-token -init
+
+#otp generated and in eu-1 grab unseal 
+cat /root/config-files/vault/initialization.txt
+
+#run twice
+vault operator generate-root -dr-token
+
+#decode
+vault operator generate-root -dr-token -decode=AVcINDoDPFcGBD5ZNgZxCQQGU3chJToeWB0 -otp=ryreUss1tKZnYoDhuUcDRWxf3N
+
+# write with dr token
+vault write sys/license text=@/root/config-files/vault/vault.hclic dr_operation_token=s.zQopOfrOd7oi5aqS03srBxkS
+
+#read license
+vault read sys/license
+
+#promote with drtoken
+vault write /sys/replication/dr/secondary/promote dr_operation_token=s.zQopOfrOd7oi5aqS03srBxkS
+
+#find new root token on na1
+echo $VAULT_TOKEN
+
+#on na2 use new root token not DR token 
+export VAULT_TOKEN=s.RIVroqAMu0tFdWr03rHv5srT
+
+#verify in na2 data there
+vault kv get Replicated_Data/capitals
+vault kv get Local_Data/credit_scores
+vault kv get Non_GDPR_Data/capitals
+
+
+
+
+
+
+
+
+
+
+
+
+
+
