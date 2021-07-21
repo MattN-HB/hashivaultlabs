@@ -1,0 +1,47 @@
+how many servers
+3
+node for 2 fauilure
+5
+
+write at once
+1
+
+how secured
+tls
+
+master key unseal 
+shamir
+
+default number key shares
+5
+
+first operation required after installing and launching a new vault cluster?
+vault init
+
+regenerate master key if you lose your key shares?
+you can't
+
+supportive methods for auto-unseal?
+
+HSM, KMS, vault transit
+
+
+what type of keys are created using autounseel
+recovery keys
+
+best practice use root token
+false
+
+three supprted logging methods
+file syslog, socket
+
+what are 4 things you should monitor health and security vault
+audit logs, telemetry data, 
+
+besides dis space what other resources prevent 
+disk inodes
+
+what is another name for vault integrated storage 
+raft
+
+
