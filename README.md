@@ -14,6 +14,7 @@ Recently, took great hands on course with Hashi Vault. This is to share the know
 * KMS (aws or gcp) / [keybase](keybase.io)
 
 ## Resources
+* Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/pop%20quiz)
 * [Vault deployment Guide](https://learn.hashicorp.com/tutorials/vault/deployment-guide)
 * [Vault Learn](https://learn.hashicorp.com/vault)
 * [Autounseal](https://learn.hashicorp.com/tutorials/vault/autounseal-transit)
