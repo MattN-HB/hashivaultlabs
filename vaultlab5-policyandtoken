@@ -1,0 +1,219 @@
+#challenge1
+#step1
+#health check
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#grab root token
+cat /root/config-files/vault/initialization.txt | grep Root
+
+s.UsxT5rUqAyoYSFXGmiKEXGFU
+
+#challenge2 vault admin policy and token
+#register admin policy
+vault policy write admin /root/config-files/vault/policies/admin-policy.hcl
+
+#create admin token
+vault write auth/token/roles/admin allowed_policies=admin token_period=2h orphan=true
+
+#create orphan tokeAmazon.com Employmn
+vault token create -display-name=admin-1 -role=admin
+
+#set admintoken
+export VAULT_TOKEN=s.g3EZlaKyFUtnSLyHEClDe9ba
+
+#replace root token with admin in bashprofile
+sed -i '$d' /root/.bash_profile
+echo "export VAULT_TOKEN=$VAULT_TOKEN" >> /root/.bash_profile
+
+#test admin token step4
+vault secrets list
+vault auth list
+
+#revoke root token
+export root_token=$(cat /root/config-files/vault/initialization.txt | grep "Initial Root Token" | cut -d":" -f2 | cut -d" " -f2)
+vault token revoke $root_token
+
+#challenge3 renewable token
+vault token create -display-name=renewable-admin -ttl=2m -explicit-max-ttl=5m -renewable=true -policy=admin
+
+#export
+export VAULT_TOKEN=s.e7Y6v0s6JtgXP6YlU083Kenw
+
+#time to live (ttl) check
+vault token lookup | grep ttl
+
+#renew token
+vault token renew
+
+#challenge4 userpass 
+#enable
+vault auth enable userpass
+
+#kvv2 mount secret
+vault secrets enable -version=2 kv
+
+#give mary and harry access to manage their own secrets
+vault policy write harry /root/config-files/vault/policies/harry-policy.hcl
+vault policy write mary /root/config-files/vault/policies/mary-policy.hcl
+
+#create them easy passwords
+vault write auth/userpass/users/harry password=hairy policies=harry
+vault write auth/userpass/users/mary password=marry policies=mary
+
+#before login as someone else need unset your token
+unset VAULT_TOKEN
+
+#determine admin token
+cat /root/.bash_profile | grep VAULT_TOKEN | cut -d'=' -f2
+#s.g3EZlaKyFUtnSLyHEClDe9ba
+
+#login as harry
+vault login -method=userpass username=harry password=hairy
+
+#write secret as harry
+vault kv put kv/users/harry/bio lastname=Bolingbroke age=34 gender=male
+
+#login as mary
+vault login -method=userpass username=mary password=marry
+#write to mary kv
+vault kv put kv/users/mary/bio lastname=Stuart age=32 gender=female
+
+#check admin can't read harry secrets
+rm /root/.vault-token
+export VAULT_TOKEN=$(cat /root/.bash_profile | grep VAULT_TOKEN | cut -d'=' -f2)
+vault kv get kv/users/harry/bio
+
+#verify admin can delete harry
+vault kv delete -versions=1 kv/users/harry/bio
+
+#Challenge5 use policy segment wildcard
+#register policy
+vault policy write manage-users /root/config-files/vault/policies/manage-users.hcl
+
+#create user umgr
+vault write auth/userpass/users/umgr password=wecanchange policies=manage-users
+
+#unset admin token
+unset VAULT_TOKEN
+
+#login as umgr
+vault login -method=userpass username=umgr password=wecanchange
+
+
+#change passowrd
+vault write auth/userpass/users/harry/password password=bald
+
+#give mary policy
+vault write auth/userpass/users/mary/policies policies=mary,manage-users
+
+#login as mary
+vault login -method=userpass username=mary password=marry
+
+#have mary change harry password back
+vault write auth/userpass/users/harry/password password=hairy
+
+#challenge6 use templated policy to manage users
+cd /root/config-files/vault
+vault auth list -format=json | jq -r '.["userpass/"].accessor' > accessor.txt
+accessor=$(cat accessor.txt)
+sed -i "s/MOUNT_ACCESSOR/$accessor/g" /root/config-files/vault/policies/templated-user-access-policy.hcl
+
+#register the policy
+vault policy write user-access /root/config-files/vault/policies/templated-user-access-policy.hcl
+
+#remove the policies 
+vault policy delete harry
+vault policy delete mary
+
+#add new user
+vault write auth/userpass/users/cary password=carry policies=user-access
+
+#unset token
+unset VAULT_TOKEN
+
+#login and write with cary 
+vault login -method=userpass username=cary password=carry
+vault kv put kv/users/cary/bio lastname=Grant age=99 gender=male
+
+#challenge 7 parameter constraints in policy
+#test without new policy
+vault secrets enable aws
+vault write aws/config/root access_key=AKIAJWVN5Z4FOFT7NLNA secret_key=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 region=us-east-1
+
+#noticee in /root/config-files/vault/policies is file prevent-aws-keys.hcl to load access key and secret key to aws
+cd /root/config-files/vault/policies
+
+#add this policy to admin policy
+cat prevent-aws-keys.hcl >> admin-policy.hcl
+vault policy write admin admin-policy.hcl
+
+#test should get deny
+vault write aws/config/root access_key=AKIAJWVN5Z4FOFT7NLNA secret_key=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 region=us-east-1
+
+#export the keys
+export AWS_ACCESS_KEY_ID=AKIAJWVN5Z4FOFT7NLNA
+export AWS_SECRET_ACCESS_KEY=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
+vault write aws/config/root region=us-east-1
+
+
+#challenge 8 2 namespaces
+#update policy
+vault policy write admin /root/config-files/vault/policies/admin-policy.hcl
+
+#create sales namespace
+vault namespace create Sales
+
+#work in namespace sales
+export VAULT_NAMESPACE=Sales
+
+#userpass auth to sales
+vault auth enable userpass
+
+#mount kv2 in namespace
+vault secrets enable -version=2 kv
+
+#write secret to all users
+vault kv put kv/shared/passwords db=123 app=456
+
+#mount accessor
+cd /root/config-files/vault
+vault auth list -format=json | jq -r '.["userpass/"].accessor' > sales_accessor.txt
+sales_accessor=$(cat sales_accessor.txt)
+sed -i "s/MOUNT_ACCESSOR/$sales_accessor/g" /root/config-files/vault/policies/sales_templated-user-access-policy.hcl
+
+#register templated policy
+
+vault policy write user-access /root/config-files/vault/policies/sales_templated-user-access-policy.hcl
+
+#create user called barry
+vault write auth/userpass/users/barry password=burry policies=user-access
+
+#authenticate in the namespace
+unset VAULT_TOKEN
+vault login -method=userpass username=barry password=burry
+
+#write to barry
+vault kv put kv/users/barry/bio lastname=Bonds age=54 gender=male
+
+#validate he can read a secret
+vault kv get kv/shared/passwords
+
+#engineer namespace
+#export vault_token
+export VAULT_TOKEN=$(cat /root/.bash_profile | grep VAULT_TOKEN | cut -d'=' -f2)
+
+#unset namesapce
+unset VAULT_NAMESPACE
+
+#create namesapce
+vault namespace create Engineering
+
+#export vault name
+export VAULT_NAMESPACE=Engineering
+
+#userpass
+vault auth enable userpass
+
