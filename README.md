@@ -18,6 +18,7 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
 * when want login in vault server to have right privs via userpass ```vault login -method=userpass username=<username> password=<password>```
 * write a secret as that user ```vault kv put kv/users/cary/bio lastname=Grant age=99 gender=male```
 * enable userpass in a namespace ```vault auth enable userpass```
+* get a secret ```vault kv get kv/shared/passwords```
 ## Resources
 * Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/pop%20quiz)
 * [Vault deployment Guide](https://learn.hashicorp.com/tutorials/vault/deployment-guide)
