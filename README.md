@@ -7,6 +7,7 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
 * multicloud
 * dynamic key generation
 * on prem implentation
+* airgapped environments or where classified cloud is not
 
 ## How to store keys
 * HSM
