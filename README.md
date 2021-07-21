@@ -10,7 +10,7 @@ Recently, took great hands on course with Hashi Vault. This is to share the know
 
 ## How to store keys
 * HSM
-* Transit vault
+* Transit vault (best used in airgapped)
 * KMS (aws or gcp) / [keybase](keybase.io)
 
 ## Resources
