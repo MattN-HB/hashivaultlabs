@@ -1,7 +1,7 @@
 # hashivaultlabs
 Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.com/products/vault). This is to share the knowledge and lessons learned during it. All the commands from vault labs and [presentations directory ](https://github.com/MattN-HB/hashivaultlabs/tree/main/guides-presentations)as outlined in the [agenda](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/Vault%20Enterprise%20Academy%20Agenda%20-%203%20Day.pdf)
 
-*Disclaimer most of the formatting is quick dumps with no clean-up so apologize ahead a time for lack of formatting
+*Disclaimer most of the formatting is quick dumps with no clean-up so apologize ahead a time for lack of formatting. All tokens / keys stored in the commands are lab only and to show example.
 
 ## When use vault instead of aws secrets manager: 
 * multicloud
