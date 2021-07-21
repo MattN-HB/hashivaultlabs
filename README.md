@@ -18,3 +18,4 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
 * [Vault deployment Guide](https://learn.hashicorp.com/tutorials/vault/deployment-guide)
 * [Vault Learn](https://learn.hashicorp.com/vault)
 * [Autounseal](https://learn.hashicorp.com/tutorials/vault/autounseal-transit)
+* [Compare cloud kms](https://www.hashicorp.com/resources/how-vault-compare-cloud-kms)
