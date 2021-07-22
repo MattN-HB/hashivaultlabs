@@ -1,0 +1,86 @@
+#status
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#configure aws iam
+env | grep ^AWS
+aws iam list-attached-user-policies --user-name=$AWS_ACCOUNT_USERNAME
+
+#create permission boundary
+cd /root/aws
+aws iam create-policy --policy-name vault-aws-permission-boundary --policy-document file://aws-permissions-boundary-policy.json --description "permission boundary policy for Vault"
+
+#create vault root policy
+aws iam create-policy --policy-name vault-root --policy-document file://aws-root-policy.json --description "root policy for Vault"
+
+#create root user
+aws iam create-user --user-name root-for-vault
+#attach policy 
+aws iam attach-user-policy --user-name root-for-vault --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/vault-root
+
+#create access key
+aws iam create-access-key --user-name root-for-vault | tee root-for-vault-keys.txt
+
+#create policy for roles
+aws iam create-policy --policy-name ec2-role  --policy-document file://ec2-policy.json --description "policy for Vault EC2 role"
+aws iam create-policy --policy-name s3-role --policy-document file://s3-policy.json --description "policy for Vault S3 role"
+#rds
+aws iam create-policy --policy-name rds-role --policy-document file://rds-policy.json --description "policy for Vault RDS role"
+
+#enable secrets 
+vault secrets enable aws
+
+vault write aws/config/lease lease=30m lease_max=60m
+
+#export
+cd /root/aws
+export AWS_ACCESS_KEY_ID=$(cat root-for-vault-keys.txt | jq -r .AccessKey.AccessKeyId)
+export AWS_SECRET_ACCESS_KEY=$(cat root-for-vault-keys.txt | jq -r .AccessKey.SecretAccessKey)
+
+#default region 
+vault write aws/config/root access_key=$AWS_ACCESS_KEY_ID secret_key=$AWS_SECRET_ACCESS_KEY region=us-east-1
+
+#rotate root creds
+vault write -f aws/config/rotate-root
+
+#create ec2 role
+vault write aws/roles/ec2 credential_type=iam_user policy_arns=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/ec2-role permissions_boundary_arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/vault-aws-permission-boundary
+#s3 role
+vault write aws/roles/s3 credential_type=iam_user policy_arns=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/s3-role permissions_boundary_arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/vault-aws-permission-boundary
+
+#rds role
+vault write aws/roles/rds credential_type=iam_user policy_arns=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/rds-role permissions_boundary_arn=arn:aws:iam::${AWS_ACCOUNT_ID}:policy/vault-aws-permission-boundary
+
+#generate aws keys
+vault read aws/creds/ec2 | tee /root/aws/ec2-keys.txt
+vault read aws/creds/s3 | tee /root/aws/s3-keys.txt
+vault read aws/creds/rds | tee /root/aws/rds-keys.txt
+
+#challenge 4
+export AWS_DEFAULT_REGION=us-east-1
+
+cd /root/aws
+
+#export keys
+export AWS_ACCESS_KEY_ID=$(cat ec2-keys.txt | grep access_key | cut -d' ' -f10)
+export AWS_SECRET_ACCESS_KEY=$(cat ec2-keys.txt | grep secret_key | cut -d' ' -f10)
+
+#create vpc and ec2 run
+aws ec2 create-default-vpc
+aws ec2 run-instances --image-id ami-07ebfd5b3428b6f4d --instance-type t1.micro --count 1
+
+#s3 provision
+export AWS_ACCESS_KEY_ID=$(cat s3-keys.txt | grep access_key | cut -d' ' -f10)
+export AWS_SECRET_ACCESS_KEY=$(cat s3-keys.txt | grep secret_key | cut -d' ' -f10)
+aws s3api create-bucket --bucket my-bucket-$INSTRUQT_PARTICIPANT_ID --region us-east-1
+
+#rds
+export AWS_ACCESS_KEY_ID=$(cat rds-keys.txt | grep access_key | cut -d' ' -f10)
+export AWS_SECRET_ACCESS_KEY=$(cat rds-keys.txt | grep secret_key | cut -d' ' -f10)
+aws rds describe-db-instances
+
+
+
+

@@ -1,0 +1,109 @@
+#lab6a aws auth 
+#challenge1
+#health check
+vault status
+
+#root token
+echo $VAULT_TOKEN
+
+#address vault server
+echo $VAULT_ADDR
+
+#now log in to that environment
+
+#challenge2 aws auth method iam create and associate
+#create aws iam role
+aws iam create-role --role-name dev --assume-role-policy-document file:///root/config-files/aws/trust-policy.json > dev-role.json
+
+aws iam put-role-policy --role-name dev --policy-name Vault --policy-document file:///root/config-files/aws/vault.json
+
+aws iam create-role --role-name qa --assume-role-policy-document file:///root/config-files/aws/trust-policy.json > qa-role.json
+
+aws iam put-role-policy --role-name qa --policy-name Vault --policy-document file:///root/config-files/aws/vault.json
+
+#register vault policies
+vault policy write dev /root/config-files/vault/dev-policy.hcl
+vault policy write qa /root/config-files/vault/qa-policy.hcl
+
+#enable aws auth
+vault auth enable aws
+
+#configure dev role
+vault write auth/aws/role/dev auth_type=iam bound_iam_principal_arn=$(cat dev-role.json | jq -r .Role.Arn) policies=dev token_ttl=1h token_max_ttl=24h
+
+#configure qa role
+vault write auth/aws/role/qa auth_type=iam bound_iam_principal_arn=$(cat qa-role.json | jq -r .Role.Arn) policies=qa token_ttl=1h token_max_ttl=24h
+
+#run following command require special header login
+vault write auth/aws/config/client iam_server_id_header_value=instruqt
+
+#challenge3 ec2 instances dev qa
+#create secrets
+vault secrets enable -version=2 kv
+vault kv put kv/dev/passwords app=DevApp1234 db=DevDB1234
+
+vault kv put kv/qa/passwords app=QaApp1234 db=QaDB1234
+
+#create instance profiles
+aws iam create-instance-profile --instance-profile-name dev-server
+#add instance profile
+aws iam add-role-to-instance-profile --instance-profile-name dev-server --role-name dev
+
+#create qa profile
+aws iam create-instance-profile --instance-profile-name qa-server
+
+#add
+aws iam add-role-to-instance-profile --instance-profile-name qa-server --role-name qa
+
+#run dev server
+aws ec2 run-instances --image-id ami-07ebfd5b3428b6f4d --instance-type t1.micro --count 1 --iam-instance-profile Name=dev-server --key-name vault --associate-public-ip-address --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=dev-server}]' > dev-server.json
+
+#see results
+cat dev-server.json
+
+#run qa server
+aws ec2 run-instances --image-id ami-07ebfd5b3428b6f4d --instance-type t1.micro --count 1 --iam-instance-profile Name=qa-server --key-name vault --associate-public-ip-address --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=qa-server}]' > qa-server.json
+
+#export public dns
+qa_instance_id=$(cat qa-server.json | jq -r .Instances[0].InstanceId)
+qa_public_dns=$(aws ec2 describe-instances --instance-ids $qa_instance_id | jq -r .Reservations[0].Instances[0].PublicDnsName)
+echo "export qa_public_dns=$qa_public_dns" >> /root/.bashrc
+
+#install vault on dev server
+ssh -i vault.pem -o StrictHostKeyChecking=no ubuntu@$dev_public_dns << ENDSSH
+curl -L "https://releases.hashicorp.com/vault/1.3.2/vault_1.3.2_linux_amd64.zip" > vault.zip
+sudo apt-get install -y unzip
+unzip vault.zip
+sudo mv vault /usr/local/bin/vault
+echo "export VAULT_ADDR=http://$vault_public_dns:8200" >> .bashrc
+ENDSSH
+
+#ssh dev server
+ssh -i vault.pem ubuntu@$dev_public_dns
+
+#login into vault
+vault login -method=aws role=dev header_value=instruqt
+
+#read the passwords
+vault kv get kv/dev/passwords | tee dev_passwords.txt
+
+#auth to qa 
+ssh -i vault.pem -o StrictHostKeyChecking=no ubuntu@$qa_public_dns << ENDSSH
+curl -L "https://releases.hashicorp.com/vault/1.3.2/vault_1.3.2_linux_amd64.zip" > vault.zip
+sudo apt-get install -y unzip
+unzip vault.zip
+sudo mv vault /usr/local/bin/vault
+echo "export VAULT_ADDR=http://$vault_public_dns:8200" >> .bashrc
+ENDSSH
+
+# ssh
+ssh -i vault.pem ubuntu@$qa_public_dns
+#vault login
+vault login -method=aws role=qa header_value=instruqt
+
+#try read dev deny
+vault kv get kv/dev/passwords
+
+#try read qa
+
+

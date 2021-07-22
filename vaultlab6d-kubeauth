@@ -1,0 +1,92 @@
+#lab6d kubernetes auth
+#challenge1
+#verify health
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#login to ui with root token
+cat /root/config-files/vault/initialization.txt | grep Root
+
+#enable kubernetes auth
+kubectl create sa vault-auth
+
+#associate the role
+kubectl apply -f vault/lab_k8s/k8s/vault-auth-cluster-role-binding.yml
+
+#extract info
+kubectl get sa vault-auth
+
+#export
+export VAULT_SA_SECRET_NAME=$(kubectl get sa vault-auth -o jsonpath="{.secrets[0]['name']}")
+#jwt token
+export SA_JWT_TOKEN=$(kubectl get secret $VAULT_SA_SECRET_NAME -o jsonpath="{.data.token}" | base64 --decode; echo)
+
+#ca cert get
+export SA_CA_CRT=$(kubectl get secret $VAULT_SA_SECRET_NAME -o jsonpath="{.data['ca\.crt']}" | base64 --decode; echo)
+
+#enable
+vault auth enable kubernetes
+
+#configure
+vault write auth/kubernetes/config \
+  kubernetes_host="$K8S_HOST" \
+  token_reviewer_jwt="$SA_JWT_TOKEN" \
+  kubernetes_ca_cert="$SA_CA_CRT"
+
+#challenge3
+#get namespace
+kubectl get namespaces
+
+#view accounts
+kubectl -n finance get sa
+kubectl -n it get sa
+
+#configure policy
+vault policy write finance-ar-app-read vault/lab_k8s/policy/finance/ar-app-vault-policy.hcl
+
+#link policy
+vault write auth/kubernetes/role/finance-ar-app \
+  bound_service_account_names=ar-app \
+  bound_service_account_namespaces=finance \
+  policies=finance-ar-app-read \
+  ttl=24h
+
+#repeat for ap
+vault policy write finance-ap-app-read vault/lab_k8s/policy/finance/ap-app-vault-policy.hcl
+
+vault write auth/kubernetes/role/finance-ap-app \
+  bound_service_account_names=ap-app \
+  bound_service_account_namespaces=finance \
+  policies=finance-ap-app-read \
+  ttl=24h
+
+#setup auto with script
+vault/lab_k8s/scripts/k8s-vault-it.sh
+
+#configure secrets
+vault/lab_k8s/scripts/k8s-secrets.sh
+ 
+#challenge4 pods with agent
+kubectl --namespace=it create configmap vault-agent-configs --from-file=vault/lab_k8s/k8s/k8sconfig/
+kubectl --namespace=finance create configmap vault-agent-configs --from-file=vault/lab_k8s/k8s/k8sconfig/
+
+#deployment yaml
+vault/lab_k8s/scripts/yml-gen.sh
+#apply deployment yamls
+kubectl -n it apply -f vault/lab_k8s/deployment/it/support.yaml
+
+kubectl -n it apply -f vault/lab_k8s/deployment/it/operations.yaml
+kubectl -n finance apply -f vault/lab_k8s/deployment/finance/ar-app.yaml
+kubectl -n finance apply -f vault/lab_k8s/deployment/finance/ap-app.yaml
+
+#verify up
+kubectl -n finance get pods
+
+#connect container
+kubectl -n finance exec -it vault-agent-finance-ar-app --container nginx-container sh
+
+#verify how looks in nginx
+cat /usr/share/nginx/html/index.html
+

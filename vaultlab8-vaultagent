@@ -1,0 +1,23 @@
+#vault agent lab8
+#challenge1
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#manipulate the config file to pass secret
+
+
+#run
+kubectl --namespace=it create configmap vault-agent-configs --from-file=vault/lab_vault_agent/k8s/k8sconfig/
+
+#deploy the pods
+kubectl -n it apply -f vault/lab_vault_agent/k8s/deployment/vault-agent-it-support-pod.yml
+
+#watch it
+kubectl -n it get pods -w
+
+#inspect
+kubectl -n it exec -it vault-agent-it-support --container nginx-container sh
+
+

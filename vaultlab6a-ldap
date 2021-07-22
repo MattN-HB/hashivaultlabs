@@ -1,0 +1,98 @@
+#lab6A LDAP Vault Authentication
+#challenge1 verify health of your cluster
+consul members
+vault status
+consul license get
+vault read sys/license
+
+#to log into ui grab token
+cat /root/config-files/vault/initialization.txt | grep Root
+#s.mCPduGY9QUycPrzadQOH2DWF
+
+#challenge2 ldap authentication
+#enable secrets  kv engine
+vault secrets enable -path=kv-blog -version=2 kv
+
+#enable ldap
+vault auth enable -path=ldap-um ldap
+
+#decond ldap auth method
+vault auth enable -path=ldap-mo ldap
+
+#verify
+vault auth list
+
+#configure
+vault write auth/ldap-um/config \
+   url="ldap://${LDAP_SERVER}" \
+   binddn="cn=read-only,dc=ourcorp,dc=com" \
+   bindpass="devsecopsFTW" \
+   userdn="ou=people,dc=ourcorp,dc=com" \
+   userattr="cn" \
+   groupdn="ou=um_group,dc=ourcorp,dc=com" \
+   groupfilter="(&(objectClass=groupOfUniqueNames)(uniqueMember={{.UserDN}}))" \
+   groupattr="cn" \
+   insecure_tls=true
+
+#change groupfilter and groupattr
+vault write auth/ldap-mo/config \
+   url="ldap://${LDAP_SERVER}" \
+   binddn="cn=read-only,dc=ourcorp,dc=com" \
+   bindpass="devsecopsFTW" \
+   userdn="ou=people,dc=ourcorp,dc=com" \
+   userattr="cn" \
+   groupdn="ou=people,dc=ourcorp,dc=com" \
+   groupfilter="(&(objectClass=person)(uid={{.Username}}))" \
+   groupattr="memberOf" \
+   insecure_tls=true
+
+#create policy
+#change directory
+cd /root/vault/lab_ldap/scripts
+#run
+./kv-template.sh
+
+#write to vault
+cd /root/vault/lab_ldap/policy/
+vault policy write kv-it kv-it-policy.hcl
+vault policy write kv-user-template kv-user-template-policy.hcl
+
+
+#link users
+vault write auth/ldap-um/groups/it policies=kv-it,kv-user-template
+
+#create association for engineering
+vault write auth/ldap-mo/groups/engineering policies=kv-user-template
+
+#login as unique member
+unset VAULT_TOKEN
+
+#login as it personal
+vault login -method=ldap -path=ldap-um username=deepak password=thispassword
+
+#now try to write
+vault kv put kv-blog/it/servers/hr/root password=rootntootn
+
+#read it
+vault kv get kv-blog/it/servers/hr/root
+
+#write 
+vault kv put kv-blog/deepak/email password=doesntlooklikeanythingtome
+
+#read 
+vault kv get kv-blog/deepak/email
+
+#second ldap auth
+vault login -method=ldap -path=ldap-mo username=chun password=thispassword
+
+#write
+vault kv put kv-blog/chun/passwords laptop=BoatAnchor cameras=SoleSteeler
+
+#read 
+vault kv get kv-blog/chun/passwords
+
+#should get deny
+vault kv get kv-blog/it/servers/hr/root
+
+
+

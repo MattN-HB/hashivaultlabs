@@ -1,0 +1,52 @@
+consul members
+vault status
+
+vault secrets enable gcp
+
+vault write gcp/config credentials=@/etc/vault.d/google-credentials.json ttl=1h max_ttl=12h
+
+#write
+vault write gcp/roleset/my-token-roleset \
+  project="$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID" \
+  secret_type="access_token"  \
+  token_scopes="https://www.googleapis.com/auth/cloud-platform" \
+  bindings=-<<EOF
+    resource "//cloudresourcemanager.googleapis.com/projects/$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID" {
+      roles = ["roles/editor"]
+    }
+EOF
+
+#second role
+vault write gcp/roleset/my-key-roleset \
+  project="$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID" \
+  secret_type="service_account_key"  \
+  bindings=-<<EOF
+    resource "//cloudresourcemanager.googleapis.com/projects/$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID" {
+      roles = ["roles/editor"]
+    }
+EOF
+
+#challenge2 oauth2 access token
+vault read gcp/token/my-token-roleset | tee /root/gcp/oauth-token.txt
+
+#serviceaccount key
+vault read gcp/key/my-key-roleset | tee /root/gcp/key.txt
+
+#use the token
+oauth_token=$(grep token /root/gcp/oauth-token.txt  | cut -d' ' -f18)
+
+curl -H "Authorization: Bearer $oauth_token"  https://cloudresourcemanager.googleapis.com/v1/projects/$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID
+
+#list
+curl -H "Authorization: Bearer $oauth_token" https://compute.googleapis.com/compute/v1/projects/$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID/zones/europe-west1-b/instances
+
+#grab the service key
+grep "private_key_data" /root/gcp/key.txt | cut -d' ' -f5 | base64 --decode > /root/gcp/key.json
+
+#activate
+gcloud auth activate-service-account --key-file=/root/gcp/key.json --project=$INSTRUQT_GCP_PROJECT_VAULT_GCP_AUTO_UNSEAL_PROJECT_ID
+
+#run other commands 
+gcloud compute images list | grep rhel
+gcloud config list
+gcloud compute instances list

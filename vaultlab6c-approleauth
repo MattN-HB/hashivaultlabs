@@ -1,0 +1,98 @@
+#6c lab approle auth
+#challenge1
+#verify chef/terraform were succesful
+ssh -i vault.pem ubuntu@$vault_server_ip
+
+#tail deployment log
+tail -f /var/log/tf-user-data.log
+
+#2019/12/11 22:05:38 /var/lib/cloud/instance/scripts/part-001: Complete This could take 5-10 minutes. Please be patient. When you see that message, press <control>+C to exit #the tail command.
+
+#verify chef wrote the ssh key 
+ls /home/ubuntu/vault-chef-approle-demo/chef/.chef/demo-admin-private-key.pem | wc -l
+
+#challenge2 unseal your vault which saves tokens to txt file
+#ssh
+ssh -i vault.pem ubuntu@$vault_server_ip
+#intiatize
+curl --silent \
+   --request PUT \
+   --data '{"secret_shares": 1, "secret_threshold": 1}' \
+   ${VAULT_ADDR}/v1/sys/init | tee \
+   >(jq -r .root_token > /home/ubuntu/vault-chef-approle-demo/root-token) \
+   >(jq -r .keys[0] > /home/ubuntu/vault-chef-approle-demo/unseal-key)
+
+#unseal vault 
+vault operator unseal $(cat /home/ubuntu/vault-chef-approle-demo/unseal-key)
+
+#export your vault token
+export VAULT_TOKEN=$(cat /home/ubuntu/vault-chef-approle-demo/root-token)
+echo "export VAULT_TOKEN=$(cat /home/ubuntu/vault-chef-approle-demo/root-token)" >> /home/ubuntu/.bashrc
+
+#challenge 3 enable approle auth
+#ssh
+ssh -i vault.pem ubuntu@$vault_server_ip
+
+#read policy
+cat app-1-secret-read.hcl
+
+#register it
+vault policy write app-1-secret-read app-1-secret-read.hcl
+
+#enable approle
+vault auth enable -description="AppRole auth method" approle
+
+#configure
+vault write auth/approle/role/app-1 policies="app-1-secret-read" token_ttl="10m" token_max_ttl="30m"
+
+#register new policy
+vault policy write app-1-approle-roleid-get app-1-approle-roleid-get.hcl
+vault policy write terraform-token-create terraform-token-create.hcl
+
+#create vault token for terraform
+vault token create -policy="app-1-approle-roleid-get" -policy="terraform-token-create" -metadata="user"="terraform-user" -format=json > roleid-token.json
+
+#inspect the result
+cat roleid-token.json | jq
+
+#create policy and token for chef
+cat  app-1-approle-secretid-create.hcl
+vault policy write app-1-approle-secretid-create app-1-approle-secretid-create.hcl
+vault token create -policy="app-1-approle-secretid-create" -metadata="user"="chef-demo" -format=json > secretid-token.json
+cat secretid-token.json | jq
+
+#challenge4 save vault oken in chef data bag
+ssh -i vault.pem ubuntu@$vault_server_ip
+
+
+#navigate and add
+cd /home/ubuntu/vault-chef-approle-demo/chef
+cat /home/ubuntu/secretid-token.json | jq --arg id approle-secretid-token '. + {id: $id}' > secretid-token.json
+
+#chef data bag
+knife data bag create secretid-token
+knife data bag from file secretid-token secretid-token.json
+
+#show what did
+knife data bag list
+knife data bag show secretid-token
+
+#challenge 5 enable vault kv secrets engine
+ssh -i vault.pem ubuntu@$vault_server_ip
+vault secrets enable -path=secret kv
+
+#write
+vault write secret/app-1 username="app-1-user" password="my-long-password"
+
+#challenge 6 terraform second instance
+#apply 
+terraform apply -auto-approve
+
+
+knife data bag show secretid-token approle-secretid-token
+
+
+
+
+
+
