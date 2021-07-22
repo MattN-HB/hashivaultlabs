@@ -15,6 +15,9 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
 * KMS (aws or gcp) / [keybase](keybase.io)
 
 ## Important Commands
+<details>
+  <summary>Click to Expand</summary>
+
 * first operation required after installing and launching a new vault cluster? ```vault init```
 * unseel ```vault operator unseal $(cat /home/ubuntu/<directory>/<yourkeyfile>)
 * validate health and grab license ```consul members vault status consul license get vault read sys/license```
@@ -55,6 +58,7 @@ bound_iam_principal_arn=arn:aws:iam::123456789012:role/MyRolepolicies=prod,dev m
 * lease extension ```vault write sys/leases/renew lease_id=<lease_id> increment=3600```
 * lease lookup ```vault write sys/leases/lookup lease_id=<lease_id> ```
 * revoke lease ```vault write sys/leases/revoke lease_id=<lease_id> ```
+</details>
 
 ## Resources
 * Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/pop%20quiz)
