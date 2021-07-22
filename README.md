@@ -19,7 +19,7 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
   <summary>Click to Expand</summary>
 
 * first operation required after installing and launching a new vault cluster? ```vault init```
-* unseel ```vault operator unseal $(cat /home/ubuntu/<directory>/<yourkeyfile>)
+* unseel ```vault operator unseal $(cat /home/ubuntu/<directory>/<yourkeyfile>)```
 * validate health and grab license ```consul members vault status consul license get vault read sys/license```
 * root token discovery ```cat /root/config-files/vault/initialization.txt | grep Root```
 * what is my token ```echo $VAULT_TOKEN```
