@@ -44,4 +44,69 @@ disk inodes
 what is another name for vault integrated storage 
 raft
 
+best practice to automate 
+false
+
+a primary vault cluster only replaicate dr secondary or performance 
+False a primary can connect to both
+
+which replication type provides an active active
+performance replication
+
+which types tokens and dyanmic
+DR
+
+api endpoint vault health
+/sys/health/
+
+api endpoint for unseal vaut
+/sys/unseal/
+
+it it bet practice multple audit devices
+ture
+
+when troubleshooting failed connections first thing
+expired tls certs, exhausted file descriptor limit, depleted memory
+
+read only while other read/write what is effective policy
+read/write policies are additive
+
+policy permission overrides all other
+deny
+
+what languages are policies writen in
+HCL
+
+orchestrator look up propeis machine token withou
+token assessor
+
+What are the two types token
+service and batch
+
+service token and batch token
+service dynamically and batch are manually and replicated performance link
+
+when token revoked all static secrets revoked
+falso only dynamic generated secretes are revoked
+
+what token property determall how long a token valid
+TTL
+
+auth method when no other available
+approle
+
+two types of aupported auth methods for aws
+ec2 and iam
+
+gcp auth can be used as a a user auth method for g-suite users
+false it only does gcp authentications
+
+recommeneded methods for secrets retrieval in k8s 
+vault agent (init container for static secrets, sidecar for dynamic)
+
+best method to authenticate on prem vm
+approle
+
+
+
 
