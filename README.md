@@ -14,14 +14,14 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
 * Transit vault (best used in airgapped)
 * KMS (aws or gcp) / [keybase](keybase.io)
 
-## Important syntax
+## Important Commands
 * when want login in vault server to have right privs via token ```vault login -method=token <admintoken>```
 * when want login in vault server to have right privs via userpass ```vault login -method=userpass username=<username> password=<password>```
 * write a secret as that user ```vault kv put kv/users/cary/bio lastname=Grant age=99 gender=male```
 * enable userpass in a namespace ```vault auth enable userpass```
 * get a secret ```vault kv get kv/shared/passwords```
 * unset namespace ```unset VAULT_NAMESPACE```
-* create namespace ```vault namespace create <nameofnamespace>
+* create namespace ```vault namespace create <nameofnamespace>```
 * export vault_namespace ```export VAULT_NAMESPACE=<nameofnamespace>```
 ## Resources
 * Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/pop%20quiz)
