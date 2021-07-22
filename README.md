@@ -21,7 +21,7 @@ Recently, took great hands on course with [Hashi Vault](https://www.hashicorp.co
 * enable userpass in a namespace ```vault auth enable userpass```
 * get a secret ```vault kv get kv/shared/passwords```
 * unset namespace ```unset VAULT_NAMESPACE```
-* create namespace ```vault namespace create <nameofnamespace>
+* create namespace ```vault namespace create <nameofnamespace>```
 * export vault_namespace ```export VAULT_NAMESPACE=<nameofnamespace>```
 ## Resources
 * Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/pop%20quiz)
