@@ -61,7 +61,7 @@ bound_iam_principal_arn=arn:aws:iam::123456789012:role/MyRolepolicies=prod,dev m
 </details>
 
 ## Resources
-* Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/pop%20quiz)
+* Most [FAQ Questions in the Pop Quiz](https://github.com/MattN-HB/hashivaultlabs/blob/main/guides-presentations/Vault%20Quiz.pdf)
 * [Vault deployment Guide](https://learn.hashicorp.com/tutorials/vault/deployment-guide)
 * [Vault Learn](https://learn.hashicorp.com/vault)
 * [Autounseal](https://learn.hashicorp.com/tutorials/vault/autounseal-transit)
